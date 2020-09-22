@@ -83,6 +83,11 @@ WIFI_Status_t WIFI_Init(void)
   return ret;
 }
 
+WIFI_Status_t WIFI_DeInit(void)
+{
+	SPI_WIFI_DeInit();
+	return 0;
+}
 /**
   * @brief  List a defined number of vailable access points
   * @param  APs : pointer to APs structure
@@ -327,6 +332,19 @@ WIFI_Status_t WIFI_OpenClientConnection(uint32_t socket, WIFI_Protocol_t type, c
   return ret;
 }
 
+
+WIFI_Status_t WIFI_SSLsetRootCA(uint8_t *pem_ca, int len)
+{
+  WIFI_Status_t ret = WIFI_STATUS_ERROR;
+
+
+  if(ES_WIFI_SetRootCA(&EsWifiObj, pem_ca, len) == ES_WIFI_STATUS_OK)
+  {
+      ret = WIFI_STATUS_OK;
+  }
+  return ret;
+}
+
 WIFI_Status_t WIFI_OpenSSLClientConnection(uint32_t socket, const char* name, uint8_t* ipaddr, uint16_t port)
 {
   WIFI_Status_t ret = WIFI_STATUS_ERROR;
@@ -430,9 +448,10 @@ WIFI_Status_t WIFI_SendData(uint8_t socket, uint8_t *pdata, uint16_t Reqlen, uin
   */
 WIFI_Status_t WIFI_ReceiveData(uint8_t socket, uint8_t *pdata, uint16_t Reqlen, uint16_t *RcvDatalen, uint32_t Timeout)
 {
-  WIFI_Status_t ret = WIFI_STATUS_ERROR; 
+  WIFI_Status_t ret;
 
-  if(ES_WIFI_ReceiveData(&EsWifiObj, socket, pdata, Reqlen, RcvDatalen, Timeout) == ES_WIFI_STATUS_OK)
+  ret = ES_WIFI_ReceiveData(&EsWifiObj, socket, pdata, Reqlen, RcvDatalen, Timeout);
+  if(ret == ES_WIFI_STATUS_OK)
   {
     ret = WIFI_STATUS_OK; 
   }

@@ -168,6 +168,7 @@ WIFI_Status_t       WIFI_GetHostAddress( char* location, uint8_t* ipaddr);
 WIFI_Status_t       WIFI_OpenClientConnection(uint32_t socket, WIFI_Protocol_t type, const char* name, uint8_t* ipaddr, uint16_t port, uint16_t local_port);
 WIFI_Status_t       WIFI_CloseClientConnection(uint32_t socket);
 
+WIFI_Status_t       WIFI_SSLsetRootCA(uint8_t *pem_ca, int len);
 WIFI_Status_t       WIFI_OpenSSLClientConnection(uint32_t socket, const char* name, uint8_t* ipaddr, uint16_t port);
 WIFI_Status_t       WIFI_CloseSSLClientConnection(uint32_t socket);
 

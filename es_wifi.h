@@ -287,6 +287,7 @@ ES_WIFI_Status_t  ES_WIFI_ActivateAP(ES_WIFIObject_t *Obj, ES_WIFI_APConfig_t *A
 ES_WIFI_Status_t ES_WIFI_DeactivateAP(ES_WIFIObject_t *Obj);
 ES_WIFI_APState_t ES_WIFI_WaitAPStateChange(ES_WIFIObject_t *Obj);
 
+ES_WIFI_Status_t ES_WIFI_SetRootCA(ES_WIFIObject_t *Obj, unsigned char *pem_ca, int len);
 #if (ES_WIFI_USE_FIRMWAREUPDATE == 1)
 ES_WIFI_Status_t  ES_WIFI_OTA_Upgrade(ES_WIFIObject_t *Obj, uint8_t *link);
 #endif

@@ -46,6 +46,7 @@
   */
 /* Includes ------------------------------------------------------------------*/
 #include "es_wifi.h"
+#include "iot_debug.h"
 
 #define AT_OK_STRING "\r\nOK\r\n> "
 #define AT_OK_STRING_LEN 8
@@ -503,14 +504,44 @@ static void AT_ParseConnSettings(char *pdata, ES_WIFI_Network_t *NetSettings)
   */
 static ES_WIFI_Status_t AT_ExecuteCommand(ES_WIFIObject_t *Obj, uint8_t* cmd, uint8_t *pdata)
 {
-  printf("===SEND=== AT > %s \n", cmd);
+	if (cmd[0] == 'R' && cmd[1]=='?')
+		IOT_WARN("===SEND=== AT > %s \n", cmd);
+
   if(Obj->fops.IO_Send(cmd, strlen((char*)cmd), Obj->Timeout) > 0)
   {
     int16_t n=Obj->fops.IO_Receive(pdata, 0, Obj->Timeout);
     if(n > 0)
     {
       *(pdata+n)=0;
-      printf("===RECV=== AT > %s \n", cmd);
+      if (cmd[0] == 'R' && cmd[1]=='?')
+    	  IOT_WARN("===RECV=== AT > %s \n", cmd);
+
+      if(strstr((char *)pdata, AT_OK_STRING))
+      {
+        return ES_WIFI_STATUS_OK;
+      }
+      else if(strstr((char *)pdata, AT_ERROR_STRING))
+      {
+        return ES_WIFI_STATUS_ERROR;
+      }
+    }
+  }
+  return ES_WIFI_STATUS_IO_ERROR;
+}
+
+
+static ES_WIFI_Status_t LOG_AT_ExecuteCommand(ES_WIFIObject_t *Obj, uint8_t* cmd, uint8_t *pdata)
+{
+	IOT_WARN("===SEND=== AT > %s \n", cmd);
+
+  if(Obj->fops.IO_Send(cmd, strlen((char*)cmd), Obj->Timeout) > 0)
+  {
+    int16_t n=Obj->fops.IO_Receive(pdata, 0, Obj->Timeout);
+    if(n > 0)
+    {
+      *(pdata+n)=0;
+    	  IOT_WARN("===RECV=== AT > %s \n", cmd);
+
       if(strstr((char *)pdata, AT_OK_STRING))
       {
         return ES_WIFI_STATUS_OK;
@@ -577,9 +608,15 @@ static ES_WIFI_Status_t AT_RequestSendData(ES_WIFIObject_t *Obj, uint8_t* cmd, u
   */
 static ES_WIFI_Status_t ReceiveShortDataLen(ES_WIFIObject_t *Obj,  char *pdata, uint16_t Reqlen, uint16_t *ReadData)
 {
-   uint16_t len;
-   printf("####SHORT READ START####\n");
+   int16_t len;
+//   printf("####SHORT READ START####\n");
    len = Obj->fops.IO_Receive(Obj->CmdData, Reqlen + AT_OK_STRING_LEN , Obj->Timeout);
+   if (len == -1) {
+	   *ReadData = 0;
+	   IOT_ERROR("READ TIMEOUT");
+	   return ES_WIFI_STATUS_TIMEOUT;
+   }
+
    
    if (len >= AT_OK_STRING_LEN) 
    {
@@ -587,8 +624,8 @@ static ES_WIFI_Status_t ReceiveShortDataLen(ES_WIFIObject_t *Obj,  char *pdata, 
      {
        *ReadData = len - AT_OK_STRING_LEN;
        memcpy(pdata, Obj->CmdData, *ReadData);
-       printf("####SHORT READ LEN: %d ####\n", *ReadData);
-       printf("####SHORT READ END####\n");
+//       printf("####SHORT READ LEN: %d ####\n", *ReadData);
+//       printf("####SHORT READ END####\n");
        return ES_WIFI_STATUS_OK; 
      }
    }
@@ -608,35 +645,43 @@ static ES_WIFI_Status_t ReceiveShortDataLen(ES_WIFIObject_t *Obj,  char *pdata, 
   */
 static ES_WIFI_Status_t ReceiveLongDataLen(ES_WIFIObject_t *Obj,  char *pdata, uint16_t Reqlen, uint16_t *ReadData)
 {
-  uint16_t len, rlen;
-  printf("####READ START####\n");
+  int16_t len, rlen;
+//  printf("####READ START####\n");
   len = Obj->fops.IO_Receive((uint8_t *)pdata, Reqlen, Obj->Timeout);
+  if (Reqlen == 0) {
+	  IOT_ERROR("READ LENGTH 0 | %d", len);
+  }
+  if (len == -1) {
+	   *ReadData = 0;
+	   IOT_ERROR("READ TIMEOUT");
+	   return ES_WIFI_STATUS_TIMEOUT;
+  }
   
   if (len >= AT_OK_STRING_LEN)  
   {
-	  printf("AT DATA LEN: %d\n", len);
+//	  printf("AT DATA LEN: %d\n", len);
     if(strstr((char *)pdata + len - AT_OK_STRING_LEN, AT_OK_STRING))
     {
-    	printf("IF LEN: %d\n", len - AT_OK_STRING_LEN);
+//    	printf("IF LEN: %d\n", len - AT_OK_STRING_LEN);
       *ReadData = len - AT_OK_STRING_LEN;
-      printf("####READ END1####\n");
+//      printf("####READ END1####\n");
       return ES_WIFI_STATUS_OK; 
     }
     else
     {     
-    	printf("ELSE LEN: %d\n", len);
+//    	printf("ELSE LEN: %d\n", len);
       memcpy(Obj->CmdData, pdata + len - AT_OK_STRING_LEN, AT_OK_STRING_LEN);
       rlen = Obj->fops.IO_Receive(Obj->CmdData + AT_OK_STRING_LEN, AT_OK_STRING_LEN, Obj->Timeout);
       
       if(strstr((char *) Obj->CmdData + rlen, AT_OK_STRING))
       {
         *ReadData = len + rlen - AT_OK_STRING_LEN;
-        printf("####READ END2####\n");
+//        printf("####READ END2####\n");
         return ES_WIFI_STATUS_OK; 
       }
     }
   }
-  printf("####READ ERROR####\n");
+  printf("####LONG READ ERROR####\n");
   return ES_WIFI_STATUS_IO_ERROR;
 }
 
@@ -895,6 +940,47 @@ ES_WIFI_Status_t ES_WIFI_GetNetworkSettings(ES_WIFIObject_t *Obj)
   {
      AT_ParseConnSettings((char *)Obj->CmdData, &Obj->NetSettings);
   }  
+  return ret;
+}
+
+ES_WIFI_Status_t ES_WIFI_SetRootCA(ES_WIFIObject_t *Obj, unsigned char *pem_ca, int len)
+{
+  ES_WIFI_Status_t ret;
+
+  sprintf((char*)Obj->CmdData,"PG=0,0,%d\r %s", len, pem_ca);
+  ret = AT_ExecuteCommand(Obj, Obj->CmdData, Obj->CmdData);
+  if(ret == ES_WIFI_STATUS_OK)
+  {
+
+    sprintf((char*)Obj->CmdData,"PF=0,0\r");
+    ret = AT_ExecuteCommand(Obj, Obj->CmdData, Obj->CmdData);
+    if(ret == ES_WIFI_STATUS_OK)
+    {
+      sprintf((char*)Obj->CmdData,"PE\r");
+      ret = AT_ExecuteCommand(Obj, Obj->CmdData, Obj->CmdData);
+      if(ret == ES_WIFI_STATUS_OK)
+      {
+
+        sprintf((char*)Obj->CmdData,"PE=0\r");
+        ret = AT_ExecuteCommand(Obj, Obj->CmdData, Obj->CmdData);
+        if(ret == ES_WIFI_STATUS_OK)
+        {
+
+          sprintf((char*)Obj->CmdData,"PA=0,DigiCert Global Root CA\r");
+          ret = AT_ExecuteCommand(Obj, Obj->CmdData, Obj->CmdData);
+          if(ret == ES_WIFI_STATUS_OK)
+          {
+//            sprintf((char*)Obj->CmdData,"PC=0,%d\r%s", len, pem_ca);
+//            ret = AT_ExecuteCommand(Obj, Obj->CmdData, Obj->CmdData);
+//            if(ret == ES_WIFI_STATUS_OK)
+//            {
+//                ret = ES_WIFI_STATUS_OK;
+//            }
+          }
+        }
+      }
+    }
+  }
   return ret;
 }
 
@@ -1451,7 +1537,7 @@ ES_WIFI_Status_t ES_WIFI_StartServerSingleConn(ES_WIFIObject_t *Obj, ES_WIFI_Con
   ES_WIFI_Status_t ret = ES_WIFI_STATUS_ERROR;
   char *ptr;
   
-  sprintf((char*)Obj->CmdData,"PK=1,3000\r");
+  sprintf((char*)Obj->CmdData,"PK=1,100000\r");
   ret = AT_ExecuteCommand(Obj, Obj->CmdData, Obj->CmdData);
   if(ret == ES_WIFI_STATUS_OK)
   {
@@ -1735,6 +1821,18 @@ ES_WIFI_Status_t ES_WIFI_ReceiveData(ES_WIFIObject_t *Obj, uint8_t Socket, uint8
         ret = AT_ExecuteCommand(Obj, Obj->CmdData, Obj->CmdData);
         if(ret == ES_WIFI_STATUS_OK)
         {  
+//
+//        	sprintf((char*)Obj->CmdData,"R?\r");
+//			ret = LOG_AT_ExecuteCommand(Obj, Obj->CmdData, Obj->CmdData);
+//			if(ret == ES_WIFI_STATUS_OK)
+//			{
+//				IOT_WARN("R? SUCCESS");
+//			} else  {
+//				IOT_WARN("R? FAIL");
+//			}
+//
+//
+
          sprintf((char*)Obj->CmdData,"R0\r");
           ret = AT_RequestReceiveData(Obj, Obj->CmdData, (char *)pdata, Reqlen, Receivedlen);
         }
